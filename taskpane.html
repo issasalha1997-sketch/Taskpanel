@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ePrescribing Mapper</title>
+
+  <!-- Office.js - the API that lets us read/write to Excel -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+  <style>
+    /* ============================================================
+       HIQA CORPORATE PALETTE + TASK PANE LAYOUT
+       ============================================================ */
+    :root {
+      --hiqa-dark: #000099;
+      --hiqa-light: #99CCFF;
+      --hiqa-white: #FFFFFF;
+      --text-primary: #333333;
+      --text-secondary: #666666;
+      --input-bg: #FFF9C4;
+      --auto-bg: #D4E6F1;
+      --success-bg: #D5F5E3;
+      --error-bg: #FADBD8;
+      --border: #CCCCCC;
+      --border-input: #999999;
+      --spacer: #F0F2F5;
+      --radius: 4px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: Tahoma, Geneva, sans-serif;
+      font-size: 12px;
+      color: var(--text-primary);
+      background: var(--hiqa-white);
+      line-height: 1.4;
+      overflow-x: hidden;
+    }
+
+    /* -- HEADER -- */
+    .header {
+      background: var(--hiqa-dark);
+      color: white;
+      padding: 12px 14px 10px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header h1 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      margin-bottom: 2px;
+    }
+    .header .subtitle {
+      font-size: 10px;
+      opacity: 0.75;
+      font-weight: 400;
+    }
+
+    /* -- NAVIGATION BAR -- */
+    .nav-bar {
+      display: flex;
+      gap: 4px;
+      padding: 8px 10px;
+      background: var(--spacer);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .nav-btn {
+      flex: 1;
+      min-width: 60px;
+      padding: 6px 4px;
+      font-family: Tahoma, Geneva, sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .nav-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+    .nav-btn:active { transform: translateY(0); }
+    .nav-btn.primary { background: var(--hiqa-dark); color: white; }
+    .nav-btn.secondary { background: var(--hiqa-light); color: var(--hiqa-dark); }
+    .nav-btn.danger { background: #E74C3C; color: white; }
+    .nav-btn.success { background: #27AE60; color: white; }
+    .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    /* -- RECORD COUNTER -- */
+    .record-counter {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 10px;
+      background: var(--hiqa-dark);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      gap: 12px;
+    }
+    .record-counter .counter-text {
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+    .record-counter button {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .record-counter button:hover { background: rgba(255,255,255,0.35); }
+
+    /* -- FORM SECTIONS -- */
+    .form-container {
+      padding: 0 0 80px 0;
+    }
+
+    .section {
+      margin: 0;
+    }
+    .section-header {
+      background: var(--hiqa-dark);
+      color: white;
+      padding: 7px 14px;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-header .chevron {
+      font-size: 9px;
+      transition: transform 0.2s;
+    }
+    .section-header.collapsed .chevron { transform: rotate(-90deg); }
+    .section-body {
+      padding: 8px 12px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-body.collapsed { display: none; }
+
+    /* -- FORM FIELDS -- */
+    .field-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: flex-start;
+    }
+    .field {
+      flex: 1;
+    }
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 6px 8px;
+      font-family: Tahoma, Geneva, sans-serif;
+      font-size: 11px;
+      border: 1px solid var(--border-input);
+      border-radius: var(--radius);
+      background: var(--input-bg);
+      color: var(--text-primary);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      outline: none;
+      border-color: var(--hiqa-dark);
+      box-shadow: 0 0 0 2px rgba(0,0,153,0.15);
+    }
+    .field textarea { resize: vertical; min-height: 48px; }
+    .field .auto-value {
+      padding: 6px 8px;
+      background: var(--auto-bg);
+      border: 1px solid var(--hiqa-light);
+      border-radius: var(--radius);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--hiqa-dark);
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+    }
+    .field .help {
+      font-size: 9px;
+      color: #AAA;
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    /* -- GAP BADGE -- */
+    .gap-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .gap-a { background: #E74C3C; color: white; }
+    .gap-b { background: #E67E22; color: white; }
+    .gap-c { background: #F39C12; color: white; }
+    .gap-d { background: #8E44AD; color: white; }
+    .gap-e { background: #27AE60; color: white; }
+
+    /* -- STATUS BAR (STICKY BOTTOM) -- */
+    .status-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 6px 12px;
+      font-size: 10px;
+      z-index: 100;
+      transition: background 0.3s;
+    }
+    .status-bar.ready { background: var(--spacer); color: var(--text-secondary); }
+    .status-bar.success { background: var(--success-bg); color: #1E8449; }
+    .status-bar.error { background: var(--error-bg); color: #C0392B; }
+    .status-bar.working { background: var(--auto-bg); color: var(--hiqa-dark); }
+
+    /* -- ALGORITHM REFERENCE -- */
+    .algo-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+    }
+    .algo-table th {
+      background: var(--hiqa-dark);
+      color: white;
+      padding: 4px 6px;
+      text-align: left;
+      font-size: 9px;
+    }
+    .algo-table td {
+      padding: 4px 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .algo-table tr:nth-child(even) td { background: #F8F9FA; }
+
+    /* -- LOADING OVERLAY -- */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,153,0.15);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .loading-overlay.active { display: flex; }
+    .loading-spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--hiqa-light);
+      border-top-color: var(--hiqa-dark);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+
+  <!-- LOADING OVERLAY -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>ePrescribing Standards Mapper</h1>
+    <div class="subtitle">HIQA Health Information Standards | Guided Data Entry</div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="nav-bar">
+    <button class="nav-btn primary" onclick="loadRecord()" title="Load selected element into form">Load</button>
+    <button class="nav-btn success" onclick="submitRecord()" title="Save form data to mapping sheet">Save</button>
+    <button class="nav-btn danger" onclick="clearForm()" title="Clear all form fields">Clear</button>
+    <button class="nav-btn secondary" onclick="autoClassifyAll()" title="Auto-classify gaps across all sheets">Auto-Classify</button>
+  </div>
+
+  <!-- RECORD COUNTER + NAVIGATION -->
+  <div class="record-counter">
+    <button onclick="navigatePrev()" title="Previous element">&#9664;</button>
+    <span class="counter-text" id="recordCounter">0 / 0</span>
+    <button onclick="navigateNext()" title="Next element">&#9654;</button>
+  </div>
+
+  <!-- FORM -->
+  <div class="form-container">
+
+    <!-- RECORD SELECTION -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="chevron">&#9660;</span> Record Selection
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field">
+            <label>Domain</label>
+            <select id="fDomain" onchange="onDomainChange()">
+              <option value="">-- Select --</option>
+              <option>Medication Prescription</option>
+              <option>Med Dispense &amp; Decline</option>
+              <option>Medication</option>
+              <option>Dosaging</option>
+              <option>Dataset Descriptions</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Standard</label>
+            <select id="fStandard">
+              <option value="1">1 (Xt-EHR)</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Data Element</label>
+            <select id="fElement">
+              <option value="">-- Select domain first --</option>
+            </select>
+            <div class="help">Auto-populated from mapping sheet</div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Section</label>
+            <div class="auto-value" id="fSection">--</div>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <div class="auto-value" id="fStatus">New</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HIQA BASELINE -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="chevron">&#9660;</span> HIQA 2018 Baseline
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field">
+            <label>Element Name</label>
+            <input type="text" id="fHiqaName" placeholder="HIQA element name" />
+          </div>
+          <div class="field">
+            <label>Conformance</label>
+            <select id="fHiqaConf">
+              <option value="">--</option>
+              <option>M</option><option>R</option><option>O</option><option>C</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Description</label>
+            <textarea id="fHiqaDesc" rows="2" placeholder="HIQA description"></textarea>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Cardinality</label>
+            <input type="text" id="fHiqaCard" placeholder="e.g. 1..1, 0..*" />
+          </div>
+          <div class="field">
+            <label>Value Set</label>
+            <input type="text" id="fHiqaVS" placeholder="Code system" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Guidance</label>
+            <textarea id="fHiqaGuidance" rows="2" placeholder="HIQA guidance notes"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARISON STANDARD -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="chevron">&#9660;</span> Comparison Standard Mapping
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field">
+            <label>Mapped Element</label>
+            <input type="text" id="fStdName" placeholder="Standard element name" />
+          </div>
+          <div class="field">
+            <label>Conformance</label>
+            <select id="fStdConf">
+              <option value="">--</option>
+              <option>M</option><option>R</option><option>O</option><option>C</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Description</label>
+            <textarea id="fStdDesc" rows="2" placeholder="Standard description"></textarea>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Cardinality</label>
+            <input type="text" id="fStdCard" placeholder="e.g. 1..1" />
+          </div>
+          <div class="field">
+            <label>Value Set</label>
+            <input type="text" id="fStdVS" placeholder="Code system" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Guidance</label>
+            <textarea id="fStdGuidance" rows="2" placeholder="Standard guidance notes"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALIGNMENT CLASSIFICATION -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="chevron">&#9660;</span> Alignment Classification
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field">
+            <label>Semantic Mapping</label>
+            <select id="fSemantic" onchange="deriveGap()">
+              <option value="">-- Select --</option>
+              <option>Equivalent</option>
+              <option>Broader</option>
+              <option>Narrower</option>
+              <option>Related</option>
+              <option>No Match</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Conformance Alignment</label>
+            <select id="fConfAlign" onchange="deriveGap()">
+              <option value="">-- Select --</option>
+              <option>Aligned</option>
+              <option>Mismatch (Stricter)</option>
+              <option>Mismatch (Looser)</option>
+              <option>N/A</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Cardinality Alignment</label>
+            <select id="fCardAlign" onchange="deriveGap()">
+              <option value="">-- Select --</option>
+              <option>Aligned</option>
+              <option>Mismatch</option>
+              <option>N/A</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Value Set Alignment</label>
+            <select id="fVSAlign" onchange="deriveGap()">
+              <option value="">-- Select --</option>
+              <option>Aligned</option>
+              <option>Different</option>
+              <option>Partial Overlap</option>
+              <option>N/A</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Auto-Derived Gap Type</label>
+            <div class="auto-value" id="fGapType">--</div>
+          </div>
+          <div class="field">
+            <label>Severity</label>
+            <div class="auto-value" id="fSeverity">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OVERALL ASSESSMENT -->
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">
+        <span class="chevron">&#9660;</span> Overall Assessment &amp; Action
+      </div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field">
+            <label>Priority</label>
+            <select id="fPriority">
+              <option value="">-- Select --</option>
+              <option>Critical</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+              <option>N/A</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Action Required</label>
+            <select id="fAction">
+              <option value="">-- Select --</option>
+              <option>Add New Element</option>
+              <option>Restructure Element</option>
+              <option>Update Conformance</option>
+              <option>Update Cardinality</option>
+              <option>Harmonize Value Set</option>
+              <option>Policy Decision</option>
+              <option>No Action</option>
+              <option>Defer</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Comments</label>
+            <textarea id="fComments" rows="3" placeholder="Notes, rationale, or follow-up actions..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- GAP ALGORITHM REFERENCE -->
+    <div class="section">
+      <div class="section-header collapsed" onclick="toggleSection(this)">
+        <span class="chevron" style="transform:rotate(-90deg)">&#9660;</span> Gap Classification Algorithm (Reference)
+      </div>
+      <div class="section-body collapsed">
+        <table class="algo-table">
+          <thead>
+            <tr><th>Rule</th><th>Condition</th><th>Result</th><th>Sev</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>IF</td><td>Semantic = No Match</td><td><span class="gap-badge gap-a">Type A</span></td><td>5</td></tr>
+            <tr><td>ELSE IF</td><td>All 4 = Aligned</td><td><span class="gap-badge gap-e">Type E</span></td><td>1</td></tr>
+            <tr><td>ELSE IF</td><td>VS = Different/Partial</td><td><span class="gap-badge gap-d">Type D</span></td><td>3</td></tr>
+            <tr><td>ELSE IF</td><td>Conf/Card = Mismatch</td><td><span class="gap-badge gap-c">Type C</span></td><td>3</td></tr>
+            <tr><td>ELSE</td><td>Semantic = Broader/Narrower/Related</td><td><span class="gap-badge gap-b">Type B</span></td><td>4</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="status-bar ready" id="statusBar">Ready. Select a domain and data element to begin.</div>
+
+  <!-- ================================================================
+       OFFICE JS API - ALL THE LOGIC
+       ================================================================ -->
+  <script>
+    // ---- STATE ----
+    let elements = [];       // List of data element names in current domain
+    let currentIndex = -1;   // Current element index
+    let isLoaded = false;    // Whether Office.js has initialised
+
+    // ---- DOMAIN-TO-SHEET MAPPING ----
+    const SHEET_MAP = {
+      "Medication Prescription": "Med Prescription",
+      "Med Dispense & Decline": "Med Dispense-Decline",
+      "Medication": "Medication",
+      "Dosaging": "Dosaging",
+      "Dataset Descriptions": "Dataset Descriptions"
+    };
+
+    // ---- INIT ----
+    Office.onReady(function(info) {
+      if (info.host === Office.HostType.Excel) {
+        isLoaded = true;
+        setStatus("ready", "Connected to Excel. Select a domain to begin.");
+      }
+    });
+
+    // ---- SECTION TOGGLE ----
+    function toggleSection(headerEl) {
+      headerEl.classList.toggle("collapsed");
+      const body = headerEl.nextElementSibling;
+      body.classList.toggle("collapsed");
+      const chevron = headerEl.querySelector(".chevron");
+      if (headerEl.classList.contains("collapsed")) {
+        chevron.style.transform = "rotate(-90deg)";
+      } else {
+        chevron.style.transform = "rotate(0deg)";
+      }
+    }
+
+    // ---- STATUS BAR ----
+    function setStatus(type, msg) {
+      const bar = document.getElementById("statusBar");
+      bar.className = "status-bar " + type;
+      bar.textContent = msg;
+    }
+
+    function showLoading(on) {
+      document.getElementById("loadingOverlay").classList.toggle("active", on);
+    }
+
+    // ---- DERIVE GAP TYPE (live as user selects) ----
+    function deriveGap() {
+      const sem = document.getElementById("fSemantic").value;
+      const conf = document.getElementById("fConfAlign").value;
+      const card = document.getElementById("fCardAlign").value;
+      const vs = document.getElementById("fVSAlign").value;
+
+      let gapType = "--";
+      let severity = "--";
+      let badgeClass = "";
+
+      if (!sem) { /* leave as default */ }
+      else if (sem === "No Match") {
+        gapType = "Type A: Missing Element"; severity = "5"; badgeClass = "gap-a";
+      } else if (sem === "Equivalent" && conf === "Aligned" && card === "Aligned" && vs === "Aligned") {
+        gapType = "Type E: Full Alignment"; severity = "1"; badgeClass = "gap-e";
+      } else if (vs === "Different" || vs === "Partial Overlap") {
+        gapType = "Type D: Terminology Mismatch"; severity = "3"; badgeClass = "gap-d";
+      } else if (conf === "Mismatch (Stricter)" || conf === "Mismatch (Looser)" || card === "Mismatch") {
+        gapType = "Type C: Constraint Mismatch"; severity = "3"; badgeClass = "gap-c";
+      } else if (sem === "Broader" || sem === "Narrower" || sem === "Related") {
+        gapType = "Type B: Structural Mismatch"; severity = "4"; badgeClass = "gap-b";
+      } else {
+        gapType = "Type E: Full Alignment"; severity = "1"; badgeClass = "gap-e";
+      }
+
+      const gapEl = document.getElementById("fGapType");
+      gapEl.innerHTML = badgeClass
+        ? '<span class="gap-badge ' + badgeClass + '">' + gapType + '</span>'
+        : gapType;
+      document.getElementById("fSeverity").textContent = severity;
+    }
+
+    // ---- ON DOMAIN CHANGE: LOAD ELEMENT LIST ----
+    function onDomainChange() {
+      const domain = document.getElementById("fDomain").value;
+      const elSelect = document.getElementById("fElement");
+      elSelect.innerHTML = '<option value="">Loading...</option>';
+      elements = [];
+      currentIndex = -1;
+
+      if (!domain || !SHEET_MAP[domain]) {
+        elSelect.innerHTML = '<option value="">-- Select domain first --</option>';
+        updateCounter();
+        return;
+      }
+
+      Excel.run(function(ctx) {
+        const sheetName = SHEET_MAP[domain];
+        const sheet = ctx.workbook.worksheets.getItem(sheetName);
+        const range = sheet.getRange("C5:C204");
+        range.load("values");
+        return ctx.sync().then(function() {
+          elements = [];
+          const vals = range.values;
+          for (let i = 0; i < vals.length; i++) {
+            if (vals[i][0] && vals[i][0] !== "") {
+              elements.push(String(vals[i][0]));
+            }
+          }
+          elSelect.innerHTML = '<option value="">-- Select (' + elements.length + ' elements) --</option>';
+          for (let i = 0; i < elements.length; i++) {
+            const opt = document.createElement("option");
+            opt.value = elements[i];
+            opt.textContent = (i + 1) + ". " + elements[i];
+            elSelect.appendChild(opt);
+          }
+          currentIndex = -1;
+          updateCounter();
+          setStatus("ready", elements.length + " elements found in " + domain);
+        });
+      }).catch(function(err) {
+        setStatus("error", "Error loading elements: " + err.message);
+      });
+    }
+
+    function updateCounter() {
+      const txt = (currentIndex >= 0)
+        ? (currentIndex + 1) + " / " + elements.length
+        : "0 / " + elements.length;
+      document.getElementById("recordCounter").textContent = txt;
+    }
+
+    // ---- LOAD RECORD ----
+    function loadRecord() {
+      if (!isLoaded) { setStatus("error", "Office.js not ready"); return; }
+
+      const domain = document.getElementById("fDomain").value;
+      const element = document.getElementById("fElement").value;
+      const stdNum = parseInt(document.getElementById("fStandard").value);
+
+      if (!domain || !element) {
+        setStatus("error", "Select both Domain and Data Element first");
+        return;
+      }
+
+      showLoading(true);
+      setStatus("working", "Loading " + element + "...");
+
+      currentIndex = elements.indexOf(element);
+      updateCounter();
+
+      Excel.run(function(ctx) {
+        const sheet = ctx.workbook.worksheets.getItem(SHEET_MAP[domain]);
+
+        // Load columns A-BJ (1-62), rows 5-204
+        const allData = sheet.getRange("A5:BJ204");
+        allData.load("values");
+        return ctx.sync().then(function() {
+          const vals = allData.values;
+          let rowIdx = -1;
+
+          // Find the row
+          for (let i = 0; i < vals.length; i++) {
+            if (String(vals[i][2]).trim().toLowerCase() === element.trim().toLowerCase()) {
+              rowIdx = i;
+              break;
+            }
+          }
+
+          if (rowIdx === -1) {
+            setStatus("error", "Element '" + element + "' not found");
+            showLoading(false);
+            return;
+          }
+
+          const r = vals[rowIdx];
+          const stdOffset = (stdNum - 1) * 10;
+          const base = 9 + stdOffset; // 0-indexed column for Std mapping
+
+          // Section
+          document.getElementById("fSection").textContent = r[1] || "--"; // Col B
+
+          // HIQA Baseline (D=3, E=4, F=5, G=6, H=7, I=8)
+          document.getElementById("fHiqaName").value = r[3] || "";
+          document.getElementById("fHiqaDesc").value = r[4] || "";
+          document.getElementById("fHiqaGuidance").value = r[5] || "";
+          document.getElementById("fHiqaConf").value = r[6] || "";
+          document.getElementById("fHiqaCard").value = r[7] || "";
+          document.getElementById("fHiqaVS").value = r[8] || "";
+
+          // Standard mapping (6 data + 4 alignment)
+          document.getElementById("fStdName").value = r[base] || "";
+          document.getElementById("fStdDesc").value = r[base + 1] || "";
+          document.getElementById("fStdGuidance").value = r[base + 2] || "";
+          document.getElementById("fStdConf").value = r[base + 3] || "";
+          document.getElementById("fStdCard").value = r[base + 4] || "";
+          document.getElementById("fStdVS").value = r[base + 5] || "";
+
+          // Alignment
+          document.getElementById("fSemantic").value = r[base + 6] || "";
+          document.getElementById("fConfAlign").value = r[base + 7] || "";
+          document.getElementById("fCardAlign").value = r[base + 8] || "";
+          document.getElementById("fVSAlign").value = r[base + 9] || "";
+
+          // Action fields (BH=59, BI=60, BJ=61 zero-indexed)
+          document.getElementById("fPriority").value = r[59] || "";
+          document.getElementById("fAction").value = r[60] || "";
+          document.getElementById("fComments").value = r[61] || "";
+
+          // Derive gap
+          deriveGap();
+
+          // Status
+          document.getElementById("fStatus").textContent = "Loaded";
+          setStatus("success", "Loaded: " + element + " (Std " + stdNum + ")");
+          showLoading(false);
+        });
+      }).catch(function(err) {
+        setStatus("error", "Load error: " + err.message);
+        showLoading(false);
+      });
+    }
+
+    // ---- SUBMIT / SAVE ----
+    function submitRecord() {
+      if (!isLoaded) { setStatus("error", "Office.js not ready"); return; }
+
+      const domain = document.getElementById("fDomain").value;
+      const element = document.getElementById("fElement").value;
+      const stdNum = parseInt(document.getElementById("fStandard").value);
+
+      if (!domain || !element) {
+        setStatus("error", "Domain and Element are required to save");
+        return;
+      }
+
+      showLoading(true);
+      setStatus("working", "Saving " + element + "...");
+
+      Excel.run(function(ctx) {
+        const sheet = ctx.workbook.worksheets.getItem(SHEET_MAP[domain]);
+        const colC = sheet.getRange("C5:C204");
+        colC.load("values");
+        return ctx.sync().then(function() {
+          let rowIdx = -1;
+          for (let i = 0; i < colC.values.length; i++) {
+            if (String(colC.values[i][0]).trim().toLowerCase() === element.trim().toLowerCase()) {
+              rowIdx = i + 5; // 1-indexed Excel row
+              break;
+            }
+          }
+
+          if (rowIdx === -1) {
+            setStatus("error", "Cannot find row for '" + element + "'");
+            showLoading(false);
+            return ctx.sync();
+          }
+
+          const r = String(rowIdx);
+          const stdOffset = (stdNum - 1) * 10;
+          const base = 10 + stdOffset; // 1-indexed column
+
+          // HIQA Baseline
+          sheet.getRange("D" + r).values = [[gv("fHiqaName")]];
+          sheet.getRange("E" + r).values = [[gv("fHiqaDesc")]];
+          sheet.getRange("F" + r).values = [[gv("fHiqaGuidance")]];
+          sheet.getRange("G" + r).values = [[gv("fHiqaConf")]];
+          sheet.getRange("H" + r).values = [[gv("fHiqaCard")]];
+          sheet.getRange("I" + r).values = [[gv("fHiqaVS")]];
+
+          // Standard mapping
+          sheet.getRange(colLetter(base) + r).values = [[gv("fStdName")]];
+          sheet.getRange(colLetter(base+1) + r).values = [[gv("fStdDesc")]];
+          sheet.getRange(colLetter(base+2) + r).values = [[gv("fStdGuidance")]];
+          sheet.getRange(colLetter(base+3) + r).values = [[gv("fStdConf")]];
+          sheet.getRange(colLetter(base+4) + r).values = [[gv("fStdCard")]];
+          sheet.getRange(colLetter(base+5) + r).values = [[gv("fStdVS")]];
+          sheet.getRange(colLetter(base+6) + r).values = [[gv("fSemantic")]];
+          sheet.getRange(colLetter(base+7) + r).values = [[gv("fConfAlign")]];
+          sheet.getRange(colLetter(base+8) + r).values = [[gv("fCardAlign")]];
+          sheet.getRange(colLetter(base+9) + r).values = [[gv("fVSAlign")]];
+
+          // Gap classification
+          const gapText = document.getElementById("fGapType").textContent || "";
+          const sevText = document.getElementById("fSeverity").textContent || "";
+          const gapCol = 50 + (stdNum - 1) * 2;
+          sheet.getRange(colLetter(gapCol) + r).values = [[gapText]];
+          sheet.getRange(colLetter(gapCol + 1) + r).values = [[sevText === "--" ? "" : parseInt(sevText)]];
+
+          // Overall
+          sheet.getRange("BF" + r).values = [[gapText]];
+          sheet.getRange("BG" + r).values = [[sevText === "--" ? "" : parseInt(sevText)]];
+
+          // Action
+          sheet.getRange("BH" + r).values = [[gv("fPriority")]];
+          sheet.getRange("BI" + r).values = [[gv("fAction")]];
+          sheet.getRange("BJ" + r).values = [[gv("fComments")]];
+
+          return ctx.sync().then(function() {
+            document.getElementById("fStatus").textContent = "Saved";
+            setStatus("success", "Saved: " + element + " (Std " + stdNum + ") to row " + rowIdx);
+            showLoading(false);
+          });
+        });
+      }).catch(function(err) {
+        setStatus("error", "Save error: " + err.message);
+        showLoading(false);
+      });
+    }
+
+    // ---- CLEAR FORM ----
+    function clearForm() {
+      const ids = [
+        "fHiqaName","fHiqaDesc","fHiqaGuidance","fHiqaConf","fHiqaCard","fHiqaVS",
+        "fStdName","fStdDesc","fStdGuidance","fStdConf","fStdCard","fStdVS",
+        "fSemantic","fConfAlign","fCardAlign","fVSAlign",
+        "fPriority","fAction","fComments"
+      ];
+      ids.forEach(function(id) {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      document.getElementById("fGapType").innerHTML = "--";
+      document.getElementById("fSeverity").textContent = "--";
+      document.getElementById("fSection").textContent = "--";
+      document.getElementById("fStatus").textContent = "Cleared";
+      setStatus("ready", "Form cleared. Ready for new entry.");
+    }
+
+    // ---- NAVIGATE ----
+    function navigateNext() {
+      if (elements.length === 0) { setStatus("error", "Load a domain first"); return; }
+      currentIndex = (currentIndex + 1) % elements.length;
+      document.getElementById("fElement").value = elements[currentIndex];
+      updateCounter();
+      loadRecord();
+    }
+
+    function navigatePrev() {
+      if (elements.length === 0) { setStatus("error", "Load a domain first"); return; }
+      currentIndex = (currentIndex - 1 + elements.length) % elements.length;
+      document.getElementById("fElement").value = elements[currentIndex];
+      updateCounter();
+      loadRecord();
+    }
+
+    // ---- AUTO-CLASSIFY ALL ----
+    function autoClassifyAll() {
+      if (!isLoaded) { setStatus("error", "Office.js not ready"); return; }
+      showLoading(true);
+      setStatus("working", "Auto-classifying all gaps across all sheets...");
+
+      const sheetNames = Object.values(SHEET_MAP);
+      let totalUpdated = 0;
+
+      Excel.run(function(ctx) {
+        const requests = [];
+        const sheets = [];
+
+        // Load all sheets
+        for (const name of sheetNames) {
+          try {
+            const ws = ctx.workbook.worksheets.getItem(name);
+            const data = ws.getRange("A5:BJ204");
+            data.load("values");
+            sheets.push({ ws: ws, data: data, name: name });
+          } catch(e) { /* sheet might not exist */ }
+        }
+
+        return ctx.sync().then(function() {
+          for (const s of sheets) {
+            const vals = s.data.values;
+            for (let i = 0; i < vals.length; i++) {
+              if (!vals[i][2] || vals[i][2] === "") continue;
+              const excelRow = String(i + 5);
+
+              for (let std = 0; std < 4; std++) {
+                const base = 9 + std * 10; // 0-indexed
+                const sem = String(vals[i][base + 6] || "").trim();
+                if (!sem) continue;
+
+                const conf = String(vals[i][base + 7] || "").trim();
+                const card = String(vals[i][base + 8] || "").trim();
+                const vs = String(vals[i][base + 9] || "").trim();
+
+                let gap = "", sev = 0;
+                if (sem === "No Match") { gap = "Type A: Missing Element"; sev = 5; }
+                else if (sem === "Equivalent" && conf === "Aligned" && card === "Aligned" && vs === "Aligned") { gap = "Type E: Full Alignment"; sev = 1; }
+                else if (vs === "Different" || vs === "Partial Overlap") { gap = "Type D: Terminology Mismatch"; sev = 3; }
+                else if (conf === "Mismatch (Stricter)" || conf === "Mismatch (Looser)" || card === "Mismatch") { gap = "Type C: Constraint Mismatch"; sev = 3; }
+                else if (sem === "Broader" || sem === "Narrower" || sem === "Related") { gap = "Type B: Structural Mismatch"; sev = 4; }
+                else { gap = "Type E: Full Alignment"; sev = 1; }
+
+                const gapCol = 50 + std * 2;
+                s.ws.getRange(colLetter(gapCol) + excelRow).values = [[gap]];
+                s.ws.getRange(colLetter(gapCol + 1) + excelRow).values = [[sev]];
+                totalUpdated++;
+
+                // Also update overall with worst
+                const curOverallSev = vals[i][58] || 0;
+                if (sev >= curOverallSev) {
+                  s.ws.getRange("BF" + excelRow).values = [[gap]];
+                  s.ws.getRange("BG" + excelRow).values = [[sev]];
+                }
+              }
+            }
+          }
+          return ctx.sync();
+        }).then(function() {
+          setStatus("success", "Auto-classified " + totalUpdated + " gaps across all sheets");
+          showLoading(false);
+        });
+      }).catch(function(err) {
+        setStatus("error", "Auto-classify error: " + err.message);
+        showLoading(false);
+      });
+    }
+
+    // ---- HELPERS ----
+    function gv(id) {
+      const el = document.getElementById(id);
+      return el ? (el.value || "") : "";
+    }
+
+    function colLetter(num) {
+      let result = "";
+      while (num > 0) {
+        num--;
+        result = String.fromCharCode(65 + (num % 26)) + result;
+        num = Math.floor(num / 26);
+      }
+      return result;
+    }
+  </script>
+</body>
+</html>
